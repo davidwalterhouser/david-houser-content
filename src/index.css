@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-tac-900 text-stone-100 font-sans antialiased;
+  }
+  * {
+    @apply box-border;
+  }
+}
+
+@layer utilities {
+  /* Hexagonal dot grid — offset rows create honeycomb arrangement */
+  .hex-bg {
+    background-image:
+      radial-gradient(circle, rgba(170,255,0,0.07) 1px, transparent 1px),
+      radial-gradient(circle, rgba(170,255,0,0.035) 1px, transparent 1px);
+    background-size: 28px 48px;
+    background-position: 0 0, 14px 24px;
+  }
+
+  .hex-bg-tan {
+    background-image:
+      radial-gradient(circle, rgba(200,169,110,0.09) 1px, transparent 1px),
+      radial-gradient(circle, rgba(200,169,110,0.045) 1px, transparent 1px);
+    background-size: 28px 48px;
+    background-position: 0 0, 14px 24px;
+  }
+
+  .hex-bg-subtle {
+    background-image:
+      radial-gradient(circle, rgba(170,255,0,0.04) 1px, transparent 1px),
+      radial-gradient(circle, rgba(170,255,0,0.02) 1px, transparent 1px);
+    background-size: 24px 42px;
+    background-position: 0 0, 12px 21px;
+  }
+
+  /* Scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #28281F transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #38382C;
+    border-radius: 9999px;
+  }
+
+  /* Flo glow on interactive cards */
+  .card-tactical {
+    @apply bg-tac-800 border border-tac-700 rounded-2xl transition-all duration-200;
+  }
+  .card-tactical:hover {
+    @apply border-tac-500 shadow-flo-sm;
+  }
+
+  /* Input base */
+  .input-tac {
+    @apply bg-tac-700 border border-tac-600 text-stone-100 placeholder-tac-300
+           rounded-xl px-3 py-2 text-sm outline-none
+           focus:border-flo/50 focus:ring-1 focus:ring-flo/20 transition-colors;
+  }
+
+  /* Primary button */
+  .btn-flo {
+    @apply bg-flo text-tac-950 font-semibold rounded-xl px-4 py-2
+           hover:bg-flo/90 transition-colors;
+  }
+
+  /* Secondary button */
+  .btn-tac {
+    @apply bg-tac-700 border border-tac-600 text-tac-100 font-medium rounded-xl px-4 py-2
+           hover:bg-tac-600 hover:text-stone-100 transition-colors;
+  }
+}

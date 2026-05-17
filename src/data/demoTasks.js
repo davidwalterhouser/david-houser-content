@@ -1,0 +1,17 @@
+export const DEMO_TASKS = [
+  { id:'t1',  title:'Set up Supabase project and deploy app',     description:'Create Supabase project, run schema.sql, deploy to Vercel or Netlify', assignee:'me',     status:'done',        priority:'high',   week:1 },
+  { id:'t2',  title:'Batch film Month 1 TikTok content',          description:'Film 7 TikTok shorts in one session. Use ring light + lavalier mic.',   assignee:'me',     status:'in-progress', priority:'high',   week:1 },
+  { id:'t3',  title:'Record YouTube vlog episode 1',              description:'Full day hunt footage + talking head intro/outro. Target 20 min.',      assignee:'me',     status:'todo',        priority:'high',   week:2 },
+  { id:'t4',  title:'Define content pillars for 90 days',         description:'Education, Entertainment, Inspiration, Behind-the-scenes',              assignee:'me',     status:'done',        priority:'medium', week:1 },
+  { id:'t5',  title:'Plan Month 2 posting schedule',              description:'Map each post to a day. IG: 1/day, TikTok: 1/day, YouTube: 2/mo.',      assignee:'me',     status:'todo',        priority:'medium', week:3 },
+  { id:'t6',  title:'Edit Month 1 Instagram Reels 1-4',           description:'Export at 1080x1920. Add captions, color grade, music from Epidemic Sound.', assignee:'editor', status:'in-progress', priority:'high',   week:1 },
+  { id:'t7',  title:'Edit YouTube episode 1 — Full hunt vlog',    description:'Cut to 15-20 min. Add intro sequence, chapter markers, end screen.',    assignee:'editor', status:'todo',        priority:'high',   week:2 },
+  { id:'t8',  title:'Create reel template for brand consistency',  description:'Build a CapCut or Premiere template matching our color grade.',         assignee:'editor', status:'todo',        priority:'medium', week:1 },
+  { id:'t9',  title:'Edit Month 1 TikToks 1-4',                   description:'Fast-cut style, captions burned in, trending audio synced.',            assignee:'editor', status:'todo',        priority:'high',   week:2 },
+  { id:'t10', title:'Build thumbnail template for YouTube',        description:'1280x720 Canva or Photoshop template. Bold text, face + action.',       assignee:'editor', status:'done',        priority:'medium', week:1 },
+  { id:'t11', title:'Schedule and post Month 1 Instagram content', description:'Upload to Later or Buffer. Add captions, hashtags, location tags.',     assignee:'va',     status:'in-progress', priority:'high',   week:1 },
+  { id:'t12', title:'Research trending audio for TikTok week 1',   description:'Pull top 10 trending sounds in hunting/outdoors niche.',                assignee:'va',     status:'done',        priority:'medium', week:1 },
+  { id:'t13', title:'Draft captions for Month 1 Facebook posts',   description:'Match brand voice: authentic, direct, community-focused.',              assignee:'va',     status:'todo',        priority:'medium', week:2 },
+  { id:'t14', title:'Pull weekly analytics and update dashboard',   description:'Instagram, TikTok, YouTube, Facebook — follower counts + top posts.',  assignee:'va',     status:'todo',        priority:'high',   week:2 },
+  { id:'t15', title:'Source UGC and community reposts for Facebook',description:'Find 5 community posts to share/feature each week.',                   assignee:'va',     status:'todo',        priority:'low',    week:3 },
+]
