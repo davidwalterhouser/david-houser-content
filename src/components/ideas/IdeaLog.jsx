@@ -186,7 +186,7 @@ export default function IdeaLog() {
                       </span>
                       {inPipeline && (
                         <span className="flex items-center gap-1 ml-auto text-xs font-semibold text-flo bg-flo/10 border border-flo/25 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 size={10} /> In Pipeline
+                          <CheckCircle2 size={10} /> In Content Studio
                         </span>
                       )}
                     </div>
