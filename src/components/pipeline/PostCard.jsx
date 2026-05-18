@@ -21,6 +21,7 @@ const DEST_STYLES = {
 }
 
 const STATUS_OPTIONS = ['filming', 'editing', 'ready', 'posted']
+const STATUS_LABELS  = { filming: 'Need to Film', editing: 'Editing', ready: 'Ready', posted: 'Posted' }
 
 const STATUS_SELECT_STYLES = {
   filming: 'text-tan    border-tan/40    bg-tan/10',
@@ -137,7 +138,7 @@ export default function PostCard({ post, onStatusChange, onUpdate, onDelete, onO
               className={`text-xs font-semibold px-2 py-0.5 rounded-lg border cursor-pointer outline-none capitalize ${STATUS_SELECT_STYLES[post.status] ?? STATUS_SELECT_STYLES.filming}`}
             >
               {STATUS_OPTIONS.map(s => (
-                <option key={s} value={s} className="bg-tac-800 text-stone-100">{s}</option>
+                <option key={s} value={s} className="bg-tac-800 text-stone-100">{STATUS_LABELS[s]}</option>
               ))}
             </select>
           </div>
