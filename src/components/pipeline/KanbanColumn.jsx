@@ -3,7 +3,7 @@ import { GripVertical } from 'lucide-react'
 import PostCard from './PostCard.jsx'
 
 const STATUS_META = {
-  filming: { label: 'Need to Film', dot: 'bg-tan',      border: 'border-tac-700', header: 'border-tac-700' },
+  filming: { label: 'To Film', dot: 'bg-tan',      border: 'border-tac-700', header: 'border-tac-700' },
   editing: { label: 'Editing', dot: 'bg-blue-400', border: 'border-tac-700', header: 'border-tac-700' },
   ready:   { label: 'Ready',   dot: 'bg-flo',      border: 'border-flo/20',  header: 'border-flo/15'  },
   posted:  { label: 'Posted',  dot: 'bg-tac-400',  border: 'border-tac-700', header: 'border-tac-700' },

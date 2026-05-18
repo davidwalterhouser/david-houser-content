@@ -21,7 +21,7 @@ const DEST_STYLES = {
 }
 
 const STATUS_OPTIONS = ['filming', 'editing', 'ready', 'posted']
-const STATUS_LABELS  = { filming: 'Need to Film', editing: 'Editing', ready: 'Ready', posted: 'Posted' }
+const STATUS_LABELS  = { filming: 'To Film', editing: 'Editing', ready: 'Ready', posted: 'Posted' }
 
 const STATUS_SELECT_STYLES = {
   filming: 'text-tan    border-tan/40    bg-tan/10',
