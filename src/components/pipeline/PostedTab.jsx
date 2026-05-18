@@ -57,12 +57,12 @@ export default function PostedTab({ posts, onUpdateStats, onUpdatePost }) {
     })
   }, [posted, platform, sort])
 
-  const totalViews  = posted.reduce((s, p) => s + (p.stats?.views ?? 0), 0)
-  const totalReach  = posted.reduce((s, p) => s + (p.stats?.reach ?? 0), 0)
-  const erValues    = posted.map(p => calcER(p.stats)).filter(e => e !== null)
+  const totalViews  = filtered.reduce((s, p) => s + (p.stats?.views ?? 0), 0)
+  const totalReach  = filtered.reduce((s, p) => s + (p.stats?.reach ?? 0), 0)
+  const erValues    = filtered.map(p => calcER(p.stats)).filter(e => e !== null)
   const avgER       = erValues.length ? erValues.reduce((s, e) => s + e, 0) / erValues.length : null
 
-  const topPost = posted.reduce((best, p) => {
+  const topPost = filtered.reduce((best, p) => {
     if (!best) return p
     return (p.stats?.views ?? 0) > (best.stats?.views ?? 0) ? p : best
   }, null)
@@ -71,7 +71,7 @@ export default function PostedTab({ posts, onUpdateStats, onUpdatePost }) {
     <div>
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatSummaryCard icon={Award}     label="Posts Published" value={posted.length}                              sub={`${posts.length - posted.length} still in pipeline`} accent="bg-flo" />
+        <StatSummaryCard icon={Award}     label="Posts Published" value={filtered.length}                            sub={platform === 'all' ? `${posts.length - posted.length} still in pipeline` : `${posted.length} total posted`} accent="bg-flo" />
         <StatSummaryCard icon={Eye}       label="Total Views"     value={fmt(totalViews)}                           sub="across all posted content"                             accent="bg-tan" />
         <StatSummaryCard icon={TrendingUp} label="Avg Engagement" value={avgER !== null ? avgER.toFixed(1) + '%' : '—'} sub="engagement rate"                                accent="bg-flo" />
         <StatSummaryCard icon={BarChart2} label="Total Reach"     value={fmt(totalReach)}                           sub="unique accounts reached"                               accent="bg-tan" />
