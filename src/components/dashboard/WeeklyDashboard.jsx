@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Camera, Scissors, CheckCircle2, Trophy, Zap } from 'lucide-react'
 import { usePosts } from '../../hooks/usePosts.js'
 import { format } from 'date-fns'
+import ContentCoach from './ContentCoach.jsx'
 
 const DEST_STYLES = {
   'IG Reel':     'bg-pink-950/50 text-pink-300',
@@ -245,6 +246,12 @@ export default function WeeklyDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Content Coach */}
+      <div className="mt-5">
+        <ContentCoach posts={posts} />
+      </div>
+
     </div>
   )
 }
