@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, RefreshCw, Columns, ScrollText } from 'lucide-react'
+import { Plus, RefreshCw, Columns, ScrollText, Search, X } from 'lucide-react'
 import KanbanColumn from './KanbanColumn.jsx'
 import ScriptView from './ScriptView.jsx'
 import { usePosts } from '../../hooks/usePosts.js'
@@ -29,6 +29,7 @@ export default function ContentPipeline() {
   const [month,    setMonth]    = useState(1)
   const [platform, setPlatform] = useState('all')
   const [pillar,   setPillar]   = useState('all')
+  const [search,   setSearch]   = useState('')
   const [showAdd,  setShowAdd]  = useState(false)
   const [newPost,  setNewPost]  = useState(BLANK_POST)
 
@@ -36,8 +37,9 @@ export default function ContentPipeline() {
     ACTIVE_STATUSES.includes(p.status) &&
     p.month === month &&
     (platform === 'all' || p.platform === platform) &&
-    (pillar   === 'all' || p.pillar   === pillar)
-  ), [posts, month, platform, pillar])
+    (pillar   === 'all' || p.pillar   === pillar) &&
+    (!search.trim() || p.title.toLowerCase().includes(search.toLowerCase()))
+  ), [posts, month, platform, pillar, search])
 
   const byStatus = status => {
     const filtered = visible.filter(p => p.status === status)
@@ -138,6 +140,21 @@ export default function ContentPipeline() {
 
       {/* Filters — board only */}
       <div className={`space-y-2.5 mb-5 ${tab === 'scripts' ? 'hidden' : ''}`}>
+        {/* Search */}
+        <div className="relative max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-tac-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search posts…"
+            className="w-full pl-7 pr-7 py-1.5 text-xs bg-tac-800 border border-tac-700 rounded-lg text-tac-100 placeholder-tac-500 outline-none focus:border-tac-500 transition-colors"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-tac-400 hover:text-tac-100 transition-colors">
+              <X size={12} />
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Month tabs */}
           <div className="flex bg-tac-800 border border-tac-700 rounded-lg p-1 gap-1">
