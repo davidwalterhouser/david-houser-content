@@ -3,7 +3,7 @@ import { LayoutDashboard, Workflow, CalendarRange, Activity, Rocket, Lightbulb, 
 const NAV = [
   { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard, desc: 'This week',        color: 'text-flo' },
   { id: 'pipeline',   label: 'Content Studio', icon: Workflow,        desc: 'Filming → Ready',  color: 'text-violet-400' },
-  { id: 'ideas',      label: 'Ideas',          icon: Lightbulb,       desc: 'Voice + text',     color: 'text-yellow-400' },
+  { id: 'ideas',      label: 'Ideas',          icon: Lightbulb,       desc: 'In Content Studio', color: 'text-yellow-400' },
   { id: 'schedule',   label: 'Schedule',       icon: CalendarRange,   desc: '60-day calendar',  color: 'text-sky-400' },
   { id: 'analytics',  label: 'Analytics',      icon: Activity,        desc: 'Post performance', color: 'text-emerald-400' },
   { id: 'growth',     label: 'Growth',         icon: Rocket,          desc: 'Monthly log',      color: 'text-orange-400' },
