@@ -123,7 +123,15 @@ export default function PostCard({ post, onStatusChange, onUpdate, onDelete, onO
                 {post.position}
               </span>
             )}
-            <span className="text-xs text-tac-300 uppercase tracking-wide">{post.type}</span>
+            <select
+              value={post.type ?? 'reel'}
+              onChange={e => onUpdate(post.id, { type: e.target.value })}
+              className="text-xs text-tac-300 uppercase tracking-wide bg-transparent border-none outline-none cursor-pointer hover:text-tac-100 transition-colors"
+            >
+              {['reel','short','video','post','story'].map(t => (
+                <option key={t} value={t} className="bg-tac-800 text-stone-100 normal-case">{t}</option>
+              ))}
+            </select>
           </div>
           {/* Right: effort badge + status dropdown stacked */}
           <div className="flex flex-col items-end gap-1 shrink-0">
