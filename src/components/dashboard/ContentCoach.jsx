@@ -1,5 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Send, Loader2, Bot, User, RotateCcw } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Sparkles, Send, Loader2, Bot, User, Trash2 } from 'lucide-react'
+
+const LS_KEY = 'coach_messages'
+
+function loadMessages() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+}
+function saveMessages(msgs) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(msgs)) } catch {}
+}
 
 const SUGGESTED = [
   'What 3 videos can I film in under an hour?',
@@ -160,11 +169,16 @@ function Message({ msg }) {
 }
 
 export default function ContentCoach({ posts }) {
-  const [messages,  setMessages]  = useState([])
+  const [messages,  setMessages]  = useState(() => loadMessages())
   const [input,     setInput]     = useState('')
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState(null)
   const bottomRef = useRef(null)
+
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    saveMessages(messages)
+  }, [messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -207,11 +221,11 @@ export default function ContentCoach({ posts }) {
         </div>
         {messages.length > 0 && (
           <button
-            onClick={() => { setMessages([]); setError(null) }}
-            className="ml-auto p-1.5 text-tac-400 hover:text-tac-100 transition-colors"
-            title="Clear chat"
+            onClick={() => { if (window.confirm('Clear the entire conversation history?')) { setMessages([]); saveMessages([]); setError(null) } }}
+            className="ml-auto p-1.5 text-tac-500 hover:text-red-400 transition-colors"
+            title="Clear conversation history"
           >
-            <RotateCcw size={13} />
+            <Trash2 size={13} />
           </button>
         )}
       </div>
