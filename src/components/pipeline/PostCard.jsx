@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Trash2, Zap, Target, Megaphone, Film, CheckCircle2, Sparkles, Loader2, RotateCcw, ScrollText, Copy, Check } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, Zap, Target, Megaphone, Film, ImageIcon, CheckCircle2, Sparkles, Loader2, RotateCcw, ScrollText, Copy, Check } from 'lucide-react'
 import { refineField } from '../../lib/refineField.js'
 
 const EFFORT_STYLES = {
@@ -203,7 +203,7 @@ export default function PostCard({ post, onStatusChange, onUpdate, onDelete, onO
       {expanded && (
         <div className="px-3 pb-3 space-y-2.5 border-t border-tac-700">
 
-          {post.hook && (
+          {post.hook && post.type !== 'post' && (
             <div className="mt-3 bg-tan/5 border-l-2 border-tan rounded-r-lg p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <Zap size={11} className="text-tan" />
@@ -216,15 +216,27 @@ export default function PostCard({ post, onStatusChange, onUpdate, onDelete, onO
           )}
 
           {post.what && (
-            <div className="bg-tac-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Film size={11} className="text-tac-200" />
-                <p className="text-xs font-semibold text-tac-100 uppercase tracking-wide flex-1">What to film</p>
-                <RefineBtn field="what" refining={refining} onOpen={openRefine} />
+            post.type === 'post' ? (
+              <div className="bg-flo/5 border border-flo/10 rounded-lg p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <ImageIcon size={11} className="text-flo/70" />
+                  <p className="text-xs font-semibold text-flo/80 uppercase tracking-wide flex-1">Photo to use</p>
+                  <RefineBtn field="what" refining={refining} onOpen={openRefine} />
+                </div>
+                <p className="text-xs text-tac-100 leading-relaxed">{post.what}</p>
+                <RefineInput field="what" refining={refining} loading={refineLoading} setRefining={setRefining} onSubmit={submitRefine} />
               </div>
-              <p className="text-xs text-tac-100 leading-relaxed">{post.what}</p>
-              <RefineInput field="what" refining={refining} loading={refineLoading} setRefining={setRefining} onSubmit={submitRefine} />
-            </div>
+            ) : (
+              <div className="bg-tac-700/50 rounded-lg p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Film size={11} className="text-tac-200" />
+                  <p className="text-xs font-semibold text-tac-100 uppercase tracking-wide flex-1">What to film</p>
+                  <RefineBtn field="what" refining={refining} onOpen={openRefine} />
+                </div>
+                <p className="text-xs text-tac-100 leading-relaxed">{post.what}</p>
+                <RefineInput field="what" refining={refining} loading={refineLoading} setRefining={setRefining} onSubmit={submitRefine} />
+              </div>
+            )
           )}
 
           {post.caption_starter && post.caption_starter !== 'N/A — Stories format' && (
