@@ -233,7 +233,7 @@ export default function PolishModal({ idea, onClose, onAddToPipeline }) {
             </select>
             <button onClick={handleAdd}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-flo hover:bg-flo/90 text-tac-950 text-sm font-bold rounded-xl transition-colors">
-              <Plus size={15} /> Add to Pipeline
+              <Plus size={15} /> Add to Content Studio
             </button>
             <button onClick={generate} className="btn-tac text-xs px-3 py-2.5">
               Regenerate

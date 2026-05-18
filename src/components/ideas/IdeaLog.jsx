@@ -220,7 +220,7 @@ export default function IdeaLog() {
                     {!inPipeline && (
                       <button
                         onClick={() => setPolishIdea(idea)}
-                        title="Polish with AI → add to Pipeline"
+                        title="Polish with AI → add to Content Studio"
                         className="p-1.5 rounded-lg text-tac-400 hover:bg-flo/10 hover:text-flo transition-colors"
                       >
                         <Sparkles size={14} />
