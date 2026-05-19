@@ -1,4 +1,4 @@
-import { LayoutDashboard, Workflow, CalendarRange, Activity, Rocket, Lightbulb, Flame } from 'lucide-react'
+import { LayoutDashboard, Workflow, CalendarRange, Activity, Rocket, Lightbulb, Flame, ListChecks } from 'lucide-react'
 
 const NAV = [
   { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard, desc: 'This week',        color: 'text-flo' },
@@ -8,6 +8,7 @@ const NAV = [
   { id: 'analytics',  label: 'Analytics',      icon: Activity,        desc: 'Post performance', color: 'text-emerald-400' },
   { id: 'growth',     label: 'Growth',         icon: Rocket,          desc: 'Monthly log',      color: 'text-orange-400' },
   { id: 'viral',      label: 'Viral Watch',    icon: Flame,           desc: 'Stay ahead',       color: 'text-red-400' },
+  { id: 'roadmap',    label: 'Action Items',   icon: ListChecks,      desc: 'Me · Editor · VA', color: 'text-purple-400' },
 ]
 
 export default function Sidebar({ activeView, onSelect }) {

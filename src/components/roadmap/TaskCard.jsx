@@ -9,8 +9,16 @@ const PRIORITY_STYLES = {
 
 const STATUS_OPTIONS = ['todo', 'in-progress', 'done']
 
+const ASSIGNEE_OPTIONS = [
+  { value: 'me',     label: 'Me',     dot: 'bg-flo'      },
+  { value: 'editor', label: 'Editor', dot: 'bg-blue-400' },
+  { value: 'va',     label: 'VA',     dot: 'bg-tan'      },
+]
+
 export default function TaskCard({ task, onUpdate, onDelete }) {
   const [expanded, setExpanded] = useState(false)
+
+  const assignee = ASSIGNEE_OPTIONS.find(a => a.value === task.assignee) ?? ASSIGNEE_OPTIONS[0]
 
   return (
     <div className={`bg-tac-750 rounded-xl border transition-all ${
@@ -42,13 +50,28 @@ export default function TaskCard({ task, onUpdate, onDelete }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 ml-6">
-          {task.week && (
-            <span className="text-xs text-tac-400">Week {task.week}</span>
-          )}
-          {task.due_date && (
-            <span className="text-xs text-tac-400">· Due {task.due_date}</span>
-          )}
+        {/* Bottom row: week/due + assignee */}
+        <div className="flex items-center justify-between gap-2 ml-6">
+          <div className="flex items-center gap-2">
+            {task.week && <span className="text-xs text-tac-400">Week {task.week}</span>}
+            {task.due_date && <span className="text-xs text-tac-400">· Due {task.due_date}</span>}
+          </div>
+
+          {/* Assignee dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${assignee.dot}`} />
+            <select
+              value={task.assignee ?? 'me'}
+              onChange={e => onUpdate(task.id, { assignee: e.target.value })}
+              className="text-xs text-tac-300 bg-transparent border-none outline-none cursor-pointer hover:text-tac-100 transition-colors"
+            >
+              {ASSIGNEE_OPTIONS.map(a => (
+                <option key={a.value} value={a.value} className="bg-tac-800 text-stone-100">
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
