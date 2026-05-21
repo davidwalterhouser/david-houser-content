@@ -249,7 +249,7 @@ export default function WeeklyDashboard() {
 
       {/* Content Coach */}
       <div className="mt-5">
-        <ContentCoach posts={posts} />
+        <ContentCoach />
       </div>
 
     </div>

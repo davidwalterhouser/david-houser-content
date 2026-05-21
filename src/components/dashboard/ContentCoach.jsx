@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Sparkles, Send, Loader2, Bot, User, Trash2 } from 'lucide-react'
+import { usePosts }  from '../../hooks/usePosts.js'
+import { useIdeas }  from '../../hooks/useIdeas.js'
+import { useGrowth } from '../../hooks/useGrowth.js'
 
 const LS_KEY = 'coach_messages'
 
@@ -16,12 +19,20 @@ const SUGGESTED = [
   'Which pillar am I missing content on?',
   'What are my easiest posts to knock out this week?',
   'Build me a 3-day filming schedule',
+  'How is my follower growth tracking vs goals?',
+  'Which of my posted videos performed best and why?',
+  'Turn my best raw ideas into post concepts',
 ]
 
-function buildSystemPrompt(posts) {
+function buildSystemPrompt(posts, ideas, current, goals) {
   const toFilm  = posts.filter(p => p.status === 'filming').sort((a,b) => (a.position??999)-(b.position??999))
   const editing = posts.filter(p => p.status === 'editing')
   const ready   = posts.filter(p => p.status === 'ready')
+  const posted  = posts.filter(p => p.status === 'posted').sort((a,b) => new Date(b.posted_at||0) - new Date(a.posted_at||0))
+
+  const rawIdeas      = ideas.filter(i => i.status === 'raw')
+  const refinedIdeas  = ideas.filter(i => i.status === 'refined')
+  const usedIdeas     = ideas.filter(i => i.status === 'used')
 
   const formatPost = p => [
     `#${p.position ?? '?'} "${p.title}"`,
@@ -30,6 +41,31 @@ function buildSystemPrompt(posts) {
     p.hook  ? `  Hook: "${p.hook}"` : null,
     p.what  ? `  What to film: ${p.what}` : null,
   ].filter(Boolean).join('\n')
+
+  const formatPostedPost = p => {
+    const s = p.stats ?? {}
+    const hasStats = s.views || s.likes || s.saves
+    return [
+      `"${p.title}" — posted ${p.posted_at ?? 'unknown date'}`,
+      `  Platforms: ${p.platforms?.join(', ') ?? p.platform ?? 'unknown'} | Pillar: ${p.pillar ?? '?'} | Type: ${p.type ?? '?'}`,
+      hasStats
+        ? `  Stats: ${s.views?.toLocaleString() ?? 0} views, ${s.likes?.toLocaleString() ?? 0} likes, ${s.saves?.toLocaleString() ?? 0} saves, ${s.shares?.toLocaleString() ?? 0} shares, ${s.reach?.toLocaleString() ?? 0} reach`
+        : `  Stats: not yet logged`,
+      p.caption_starter ? `  Caption: "${p.caption_starter}"` : null,
+    ].filter(Boolean).join('\n')
+  }
+
+  const PLATFORM_LABELS = { instagram: 'Instagram @davidhouser', tiktok: 'TikTok @davidwhouser', youtube: 'YouTube @davidhouserarchery', facebook: 'Facebook' }
+  const formatGrowth = () => {
+    if (!goals?.length && !Object.keys(current ?? {}).length) return 'Growth data not yet available.'
+    return ['instagram','tiktok','youtube','facebook'].map(p => {
+      const cur = current?.[p] ?? '?'
+      const goal = goals?.find(g => g.platform === p)
+      const target = goal?.goal_count ?? '?'
+      const pct = (goal && cur !== '?') ? Math.round((cur / goal.goal_count) * 100) : null
+      return `  ${PLATFORM_LABELS[p] ?? p}: ${typeof cur === 'number' ? cur.toLocaleString() : cur} followers → goal ${typeof target === 'number' ? target.toLocaleString() : target}${pct !== null ? ` (${pct}% of goal)` : ''}`
+    }).join('\n')
+  }
 
   return `You are David Houser's personal content coach, built directly into his private content command center dashboard.
 
@@ -105,22 +141,39 @@ Low = phone, no special setup, talking head or existing footage, under 30 min to
 Medium = some prep, specific location or gear, 30-60 min
 High = full production, travel, multiple setups, 60+ min
 
-═══ CURRENT LIVE PIPELINE ═══
+═══ CURRENT FOLLOWER COUNTS & GOALS (90-day targets) ═══
+${formatGrowth()}
+
+═══ CONTENT STUDIO — FULL PIPELINE ═══
 
 TO FILM — ${toFilm.length} posts (in priority order):
-${toFilm.map(formatPost).join('\n\n')}
+${toFilm.length ? toFilm.map(formatPost).join('\n\n') : 'None'}
 
 IN EDITING — ${editing.length} posts:
-${editing.map(p => `- "${p.title}" | ${p.effort ?? '?'} effort | ${p.pillar ?? '?'}`).join('\n') || 'None'}
+${editing.length ? editing.map(p => `- "${p.title}" | ${p.effort ?? '?'} effort | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
 
 READY TO POST — ${ready.length} posts:
-${ready.map(p => `- "${p.title}" | ${p.pillar ?? '?'}`).join('\n') || 'None'}
+${ready.length ? ready.map(p => `- "${p.title}" | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
+
+POSTED — ${posted.length} posts (most recent first):
+${posted.length ? posted.map(formatPostedPost).join('\n\n') : 'None yet'}
+
+═══ IDEA LOG ═══
+
+RAW IDEAS — ${rawIdeas.length} unprocessed ideas:
+${rawIdeas.length ? rawIdeas.map(i => `- "${i.content}"${i.platform ? ` [${i.platform}]` : ''}${i.tags?.length ? ` #${i.tags.join(' #')}` : ''}`).join('\n') : 'None'}
+
+REFINED IDEAS — ${refinedIdeas.length} ideas ready to develop:
+${refinedIdeas.length ? refinedIdeas.map(i => `- "${i.content}"${i.platform ? ` [${i.platform}]` : ''}`).join('\n') : 'None'}
+
+IDEAS ALREADY IN CONTENT STUDIO — ${usedIdeas.length} ideas turned into posts:
+${usedIdeas.length ? usedIdeas.map(i => `- "${i.content}"`).join('\n') : 'None'}
 
 ═══ YOUR ROLE ═══
-Answer David's questions using ALL of this context. Be specific, practical, and direct — reference actual post titles and details from his real pipeline. Keep responses concise and scannable (he's a creator, not a reader). When recommending what to film, rank by effort level and strategic value. When he asks about scheduling, think in realistic batches of 3-5 videos per session. Always honor the non-negotiable content rules above.`
+Answer David's questions using ALL of this context. Be specific, practical, and direct — reference actual post titles, stats, and ideas from his real dashboard. Keep responses concise and scannable (he's a creator, not a reader). When recommending what to film, rank by effort level and strategic value. When he asks about scheduling, think in realistic batches of 3-5 videos per session. When he asks about growth, reference his actual follower counts vs goals. When he asks about what's working, reference the actual posted post stats. Always honor the non-negotiable content rules above.`
 }
 
-async function askCoach(messages, posts) {
+async function askCoach(messages, posts, ideas, current, goals) {
   const key = import.meta.env.VITE_ANTHROPIC_API_KEY
   if (!key || key === 'your-api-key-here') throw new Error('NO_KEY')
 
@@ -135,7 +188,7 @@ async function askCoach(messages, posts) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
-      system: buildSystemPrompt(posts),
+      system: buildSystemPrompt(posts, ideas, current, goals),
       messages,
     }),
   })
@@ -168,7 +221,11 @@ function Message({ msg }) {
   )
 }
 
-export default function ContentCoach({ posts }) {
+export default function ContentCoach() {
+  const { posts }            = usePosts()
+  const { ideas }            = useIdeas()
+  const { current, goals }   = useGrowth()
+
   const [messages,  setMessages]  = useState(() => loadMessages())
   const [input,     setInput]     = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -198,7 +255,7 @@ export default function ContentCoach({ posts }) {
     try {
       const reply = await askCoach(
         newMessages.map(m => ({ role: m.role, content: m.content })),
-        posts
+        posts, ideas, current, goals
       )
       setMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch (e) {
@@ -217,7 +274,7 @@ export default function ContentCoach({ posts }) {
         </div>
         <div>
           <p className="text-sm font-semibold text-stone-100">Content Coach</p>
-          <p className="text-xs text-tac-300">Knows your full pipeline · ask anything</p>
+          <p className="text-xs text-tac-300">Knows your full dashboard · pipeline, ideas, growth & stats</p>
         </div>
         {messages.length > 0 && (
           <button
