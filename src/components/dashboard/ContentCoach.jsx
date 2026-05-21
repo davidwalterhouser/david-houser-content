@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Sparkles, Send, Loader2, Bot, User, Trash2 } from 'lucide-react'
+import { Sparkles, Send, Loader2, Bot, User, Trash2, CheckCircle2, PenLine } from 'lucide-react'
 import { usePosts }  from '../../hooks/usePosts.js'
 import { useIdeas }  from '../../hooks/useIdeas.js'
 import { useGrowth } from '../../hooks/useGrowth.js'
@@ -22,8 +22,34 @@ const SUGGESTED = [
   'Build me a 3-day filming schedule',
   'How is my follower growth tracking vs goals?',
   'Which of my posted videos performed best and why?',
-  'Turn my best raw ideas into post concepts',
+  'Rebuild the hook and filming plan for my next post',
 ]
+
+// ─── Parse update block out of coach response ───────────────────────────────
+function parseUpdate(content) {
+  const match = content.match(/%%POST_UPDATE%%([\s\S]*?)%%END_UPDATE%%/)
+  if (!match) return { text: content, update: null }
+  const text = content.replace(/%%POST_UPDATE%%[\s\S]*?%%END_UPDATE%%/, '').trim()
+  try {
+    const update = JSON.parse(match[1].trim())
+    return { text, update }
+  } catch {
+    return { text: content, update: null }
+  }
+}
+
+const UPDATE_FIELD_LABELS = {
+  title:           'Title',
+  hook:            'Hook',
+  what:            'What to film',
+  caption_starter: 'Caption starter',
+  viral_note:      'Viral note',
+  platform_note:   'Platform strategy',
+  pillar:          'Pillar',
+  effort:          'Effort',
+  type:            'Type',
+  platforms:       'Platforms',
+}
 
 function buildSystemPrompt(posts, ideas, current, goals) {
   const toFilm  = posts.filter(p => p.status === 'filming').sort((a,b) => (a.position??999)-(b.position??999))
@@ -31,16 +57,17 @@ function buildSystemPrompt(posts, ideas, current, goals) {
   const ready   = posts.filter(p => p.status === 'ready')
   const posted  = posts.filter(p => p.status === 'posted').sort((a,b) => new Date(b.posted_at||0) - new Date(a.posted_at||0))
 
-  const rawIdeas      = ideas.filter(i => i.status === 'raw')
-  const refinedIdeas  = ideas.filter(i => i.status === 'refined')
-  const usedIdeas     = ideas.filter(i => i.status === 'used')
+  const rawIdeas     = ideas.filter(i => i.status === 'raw')
+  const refinedIdeas = ideas.filter(i => i.status === 'refined')
+  const usedIdeas    = ideas.filter(i => i.status === 'used')
 
   const formatPost = p => [
-    `#${p.position ?? '?'} "${p.title}"`,
+    `POST_ID:${p.id} | #${p.position ?? '?'} "${p.title}"`,
     `  Effort: ${p.effort ?? 'unknown'} | Pillar: ${p.pillar ?? 'unknown'} | Type: ${p.type ?? 'unknown'}`,
     `  Platforms: ${p.platforms?.join(', ') ?? p.platform ?? 'unknown'}`,
     p.hook  ? `  Hook: "${p.hook}"` : null,
     p.what  ? `  What to film: ${p.what}` : null,
+    p.caption_starter ? `  Caption starter: "${p.caption_starter}"` : null,
   ].filter(Boolean).join('\n')
 
   const formatPostedPost = p => {
@@ -60,7 +87,7 @@ function buildSystemPrompt(posts, ideas, current, goals) {
   const formatGrowth = () => {
     if (!goals?.length && !Object.keys(current ?? {}).length) return 'Growth data not yet available.'
     return ['instagram','tiktok','youtube','facebook'].map(p => {
-      const cur = current?.[p] ?? '?'
+      const cur  = current?.[p] ?? '?'
       const goal = goals?.find(g => g.platform === p)
       const target = goal?.goal_count ?? '?'
       const pct = (goal && cur !== '?') ? Math.round((cur / goal.goal_count) * 100) : null
@@ -147,14 +174,16 @@ ${formatGrowth()}
 
 ═══ CONTENT STUDIO — FULL PIPELINE ═══
 
+Each post in the "To Film" list has a POST_ID. You will need this ID if you update a post.
+
 TO FILM — ${toFilm.length} posts (in priority order):
 ${toFilm.length ? toFilm.map(formatPost).join('\n\n') : 'None'}
 
 IN EDITING — ${editing.length} posts:
-${editing.length ? editing.map(p => `- "${p.title}" | ${p.effort ?? '?'} effort | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
+${editing.length ? editing.map(p => `- POST_ID:${p.id} | "${p.title}" | ${p.effort ?? '?'} effort | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
 
 READY TO POST — ${ready.length} posts:
-${ready.length ? ready.map(p => `- "${p.title}" | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
+${ready.length ? ready.map(p => `- POST_ID:${p.id} | "${p.title}" | ${p.pillar ?? '?'} | ${p.platforms?.join(', ') ?? p.platform ?? '?'}`).join('\n') : 'None'}
 
 POSTED — ${posted.length} posts (most recent first):
 ${posted.length ? posted.map(formatPostedPost).join('\n\n') : 'None yet'}
@@ -169,6 +198,23 @@ ${refinedIdeas.length ? refinedIdeas.map(i => `- "${i.content}"${i.platform ? ` 
 
 IDEAS ALREADY IN CONTENT STUDIO — ${usedIdeas.length} ideas turned into posts:
 ${usedIdeas.length ? usedIdeas.map(i => `- "${i.content}"`).join('\n') : 'None'}
+
+═══ UPDATING POSTS DIRECTLY ═══
+When David asks you to update, rewrite, rebuild, or improve a specific post in his Content Studio, do the following:
+1. Give your normal text response explaining what you changed and why.
+2. At the very end of your response, append an update block in EXACTLY this format (no extra text around it):
+
+%%POST_UPDATE%%
+{"id": "EXACT_POST_ID_HERE", "title": "...", "hook": "...", "what": "...", "caption_starter": "...", "viral_note": "...", "platform_note": "..."}
+%%END_UPDATE%%
+
+Rules for the update block:
+- Use the exact POST_ID from the pipeline data above (the string after "POST_ID:")
+- Only include fields you are actually changing — omit fields you are not changing
+- Always include "id" — never omit it
+- Valid fields: id, title, hook, what, caption_starter, viral_note, platform_note, pillar, effort, type
+- David will see a preview of changes and an "Apply to Content Studio" button — clicking it updates the post instantly
+- If David is just asking questions or brainstorming (not asking to update a specific post), do NOT include the update block
 
 ═══ YOUR ROLE ═══
 Answer David's questions using ALL of this context. Be specific, practical, and direct — reference actual post titles, stats, and ideas from his real dashboard. Keep responses concise and scannable (he's a creator, not a reader). When recommending what to film, rank by effort level and strategic value. When he asks about scheduling, think in realistic batches of 3-5 videos per session. When he asks about growth, reference his actual follower counts vs goals. When he asks about what's working, reference the actual posted post stats. Always honor the non-negotiable content rules above.`
@@ -188,7 +234,7 @@ async function askCoach(messages, posts, ideas, current, goals) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
+      max_tokens: 1200,
       system: buildSystemPrompt(posts, ideas, current, goals),
       messages,
     }),
@@ -199,8 +245,48 @@ async function askCoach(messages, posts, ideas, current, goals) {
   return data.content?.[0]?.text?.trim() ?? ''
 }
 
-function Message({ msg }) {
+function UpdateCard({ update, posts, onApply, applied }) {
+  const post = posts.find(p => p.id === update.id)
+  const fields = Object.entries(update).filter(([k]) => k !== 'id')
+
+  return (
+    <div className={`mt-2 rounded-xl border p-3 text-xs space-y-2 transition-all ${
+      applied
+        ? 'bg-flo/5 border-flo/20'
+        : 'bg-tac-750 border-tac-600'
+    }`}>
+      <div className="flex items-center gap-1.5 font-semibold text-stone-100">
+        <PenLine size={11} className="text-flo shrink-0" />
+        <span>Update: <span className="text-flo">{post?.title ?? update.id}</span></span>
+      </div>
+      <div className="space-y-1.5 pl-4">
+        {fields.map(([key, val]) => (
+          <div key={key}>
+            <span className="text-tac-400 uppercase tracking-wide text-[10px]">{UPDATE_FIELD_LABELS[key] ?? key}</span>
+            <p className="text-tac-100 leading-snug mt-0.5 italic">"{Array.isArray(val) ? val.join(', ') : val}"</p>
+          </div>
+        ))}
+      </div>
+      {applied ? (
+        <div className="flex items-center gap-1.5 text-flo font-semibold pt-1">
+          <CheckCircle2 size={12} /> Applied to Content Studio
+        </div>
+      ) : (
+        <button
+          onClick={onApply}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-flo hover:bg-flo/90 text-tac-950 font-bold rounded-lg transition-colors"
+        >
+          <CheckCircle2 size={11} /> Apply to Content Studio
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Message({ msg, posts, onApplyUpdate }) {
   const isUser = msg.role === 'user'
+  const { text, update } = isUser ? { text: msg.content, update: null } : parseUpdate(msg.content)
+
   return (
     <div className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
@@ -211,21 +297,31 @@ function Message({ msg }) {
           : <Bot size={11} className="text-tac-200" />
         }
       </div>
-      <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
-        isUser
-          ? 'bg-flo/10 border border-flo/20 text-stone-100 rounded-tr-sm'
-          : 'bg-tac-700/60 border border-tac-600/50 text-tac-100 rounded-tl-sm'
-      }`}>
-        {msg.content}
+      <div className={`max-w-[85%] ${isUser ? '' : 'flex-1'}`}>
+        <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
+          isUser
+            ? 'bg-flo/10 border border-flo/20 text-stone-100 rounded-tr-sm'
+            : 'bg-tac-700/60 border border-tac-600/50 text-tac-100 rounded-tl-sm'
+        }`}>
+          {text}
+        </div>
+        {update && (
+          <UpdateCard
+            update={update}
+            posts={posts}
+            applied={msg.applied}
+            onApply={() => onApplyUpdate(msg, update)}
+          />
+        )}
       </div>
     </div>
   )
 }
 
 export default function ContentCoach() {
-  const { posts }            = usePosts()
-  const { ideas }            = useIdeas()
-  const { current, goals }   = useGrowth()
+  const { posts, updatePost } = usePosts()
+  const { ideas }             = useIdeas()
+  const { current, goals }    = useGrowth()
 
   const [messages,  setMessages]  = useState(() => loadMessages())
   const [input,     setInput]     = useState('')
@@ -233,10 +329,7 @@ export default function ContentCoach() {
   const [error,     setError]     = useState(null)
   const bottomRef = useRef(null)
 
-  // Persist messages to localStorage whenever they change
-  useEffect(() => {
-    saveMessages(messages)
-  }, [messages])
+  useEffect(() => { saveMessages(messages) }, [messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -252,7 +345,7 @@ export default function ContentCoach() {
     setInput('')
     setError(null)
 
-    const userMsg = { role: 'user', content }
+    const userMsg  = { role: 'user', content }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setLoading(true)
@@ -262,12 +355,19 @@ export default function ContentCoach() {
         newMessages.map(m => ({ role: m.role, content: m.content })),
         posts, ideas, current, goals
       )
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, applied: false }])
     } catch (e) {
       setError(e.message === 'NO_KEY' ? 'Add your API key to use the coach' : e.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleApplyUpdate(msg, update) {
+    const { id, ...fields } = update
+    if (!id) return
+    await updatePost(id, fields)
+    setMessages(prev => prev.map(m => m === msg ? { ...m, applied: true } : m))
   }
 
   return (
@@ -279,7 +379,7 @@ export default function ContentCoach() {
         </div>
         <div>
           <p className="text-sm font-semibold text-stone-100">Content Coach</p>
-          <p className="text-xs text-tac-300">Knows your full dashboard · pipeline, ideas, growth & stats</p>
+          <p className="text-xs text-tac-300">Knows your full dashboard · can edit Content Studio</p>
         </div>
         {messages.length > 0 && (
           <button
@@ -293,7 +393,7 @@ export default function ContentCoach() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-[180px] max-h-[340px] scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-[180px] max-h-[400px] scrollbar-thin">
         {messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-xs text-tac-400 text-center mb-3">Try asking:</p>
@@ -308,7 +408,14 @@ export default function ContentCoach() {
             ))}
           </div>
         )}
-        {messages.map((msg, i) => <Message key={i} msg={msg} />)}
+        {messages.map((msg, i) => (
+          <Message
+            key={i}
+            msg={msg}
+            posts={posts}
+            onApplyUpdate={handleApplyUpdate}
+          />
+        ))}
         {loading && (
           <div className="flex gap-2.5">
             <div className="w-6 h-6 rounded-full bg-tac-700 border border-tac-600 flex items-center justify-center shrink-0">
@@ -330,7 +437,7 @@ export default function ContentCoach() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder="Ask about your pipeline…"
+            placeholder="Ask or say 'rewrite the hook for [post name]'…"
             disabled={loading}
             className="flex-1 input-tac text-sm py-2"
           />
