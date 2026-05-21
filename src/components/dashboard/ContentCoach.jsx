@@ -3,6 +3,7 @@ import { Sparkles, Send, Loader2, Bot, User, Trash2 } from 'lucide-react'
 import { usePosts }  from '../../hooks/usePosts.js'
 import { useIdeas }  from '../../hooks/useIdeas.js'
 import { useGrowth } from '../../hooks/useGrowth.js'
+import VoiceDictation from '../ideas/VoiceDictation.jsx'
 
 const LS_KEY = 'coach_messages'
 
@@ -241,6 +242,10 @@ export default function ContentCoach() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
+  const handleTranscript = useCallback((t) => {
+    setInput(prev => prev ? prev + ' ' + t : t)
+  }, [])
+
   async function send(text) {
     const content = (text ?? input).trim()
     if (!content || loading) return
@@ -319,7 +324,7 @@ export default function ContentCoach() {
       </div>
 
       {/* Input */}
-      <div className="px-4 pb-4 pt-2 border-t border-tac-700">
+      <div className="px-4 pb-4 pt-2 border-t border-tac-700 space-y-2">
         <div className="flex gap-2">
           <input
             value={input}
@@ -337,6 +342,7 @@ export default function ContentCoach() {
             <Send size={14} />
           </button>
         </div>
+        <VoiceDictation onTranscript={handleTranscript} />
       </div>
     </div>
   )
