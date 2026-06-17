@@ -3,6 +3,7 @@ import { Camera, Scissors, CheckCircle2, Trophy, Zap } from 'lucide-react'
 import { usePosts } from '../../hooks/usePosts.js'
 import { format } from 'date-fns'
 import ContentCoach from './ContentCoach.jsx'
+import BrandNotes from './BrandNotes.jsx'
 
 const DEST_STYLES = {
   'IG Reel':     'bg-pink-950/50 text-pink-300',
@@ -249,6 +250,7 @@ export default function WeeklyDashboard() {
 
       {/* Content Coach */}
       <div className="mt-5">
+        <BrandNotes />
         <ContentCoach />
       </div>
 

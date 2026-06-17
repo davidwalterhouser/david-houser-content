@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Sparkles, Send, Loader2, Bot, User, Trash2, CheckCircle2, PenLine } from 'lucide-react'
-import { usePosts }  from '../../hooks/usePosts.js'
-import { useIdeas }  from '../../hooks/useIdeas.js'
-import { useGrowth } from '../../hooks/useGrowth.js'
+import { usePosts }      from '../../hooks/usePosts.js'
+import { useIdeas }      from '../../hooks/useIdeas.js'
+import { useGrowth }     from '../../hooks/useGrowth.js'
+import { useBrandNotes } from '../../hooks/useBrandNotes.js'
 import VoiceDictation from '../ideas/VoiceDictation.jsx'
 
 const LS_KEY = 'coach_messages'
@@ -51,7 +52,7 @@ const UPDATE_FIELD_LABELS = {
   platforms:       'Platforms',
 }
 
-function buildSystemPrompt(posts, ideas, current, goals) {
+function buildSystemPrompt(posts, ideas, current, goals, brandNotes) {
   const toFilm  = posts.filter(p => p.status === 'filming').sort((a,b) => (a.position??999)-(b.position??999))
   const editing = posts.filter(p => p.status === 'editing')
   const ready   = posts.filter(p => p.status === 'ready')
@@ -199,6 +200,9 @@ ${refinedIdeas.length ? refinedIdeas.map(i => `- "${i.content}"${i.platform ? ` 
 IDEAS ALREADY IN CONTENT STUDIO — ${usedIdeas.length} ideas turned into posts:
 ${usedIdeas.length ? usedIdeas.map(i => `- "${i.content}"`).join('\n') : 'None'}
 
+═══ BRAND FEEDBACK LOG (David's own lessons learned — treat as HIGHEST PRIORITY guidance) ═══
+${brandNotes?.length ? brandNotes.map(n => `[${n.category.toUpperCase().replace('_',' ')}] ${n.content}`).join('\n') : 'No notes logged yet.'}
+
 ═══ UPDATING POSTS DIRECTLY ═══
 When David asks you to update, rewrite, rebuild, or improve a specific post in his Content Studio, do the following:
 1. Give your normal text response explaining what you changed and why.
@@ -220,7 +224,7 @@ Rules for the update block:
 Answer David's questions using ALL of this context. Be specific, practical, and direct — reference actual post titles, stats, and ideas from his real dashboard. Keep responses concise and scannable (he's a creator, not a reader). When recommending what to film, rank by effort level and strategic value. When he asks about scheduling, think in realistic batches of 3-5 videos per session. When he asks about growth, reference his actual follower counts vs goals. When he asks about what's working, reference the actual posted post stats. Always honor the non-negotiable content rules above.`
 }
 
-async function askCoach(messages, posts, ideas, current, goals) {
+async function askCoach(messages, posts, ideas, current, goals, brandNotes) {
   const key = import.meta.env.VITE_ANTHROPIC_API_KEY
   if (!key || key === 'your-api-key-here') throw new Error('NO_KEY')
 
@@ -235,7 +239,7 @@ async function askCoach(messages, posts, ideas, current, goals) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
-      system: buildSystemPrompt(posts, ideas, current, goals),
+      system: buildSystemPrompt(posts, ideas, current, goals, brandNotes),
       messages,
     }),
   })
@@ -322,6 +326,7 @@ export default function ContentCoach() {
   const { posts, updatePost } = usePosts()
   const { ideas }             = useIdeas()
   const { current, goals }    = useGrowth()
+  const { notes: brandNotes } = useBrandNotes()
 
   const [messages,  setMessages]  = useState(() => loadMessages())
   const [input,     setInput]     = useState('')
@@ -353,7 +358,7 @@ export default function ContentCoach() {
     try {
       const reply = await askCoach(
         newMessages.map(m => ({ role: m.role, content: m.content })),
-        posts, ideas, current, goals
+        posts, ideas, current, goals, brandNotes
       )
       setMessages(prev => [...prev, { role: 'assistant', content: reply, applied: false }])
     } catch (e) {
