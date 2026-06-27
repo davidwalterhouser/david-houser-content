@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import { Loader2, Sparkles, Copy, Check, Trash2, FileText, ScrollText, Star } from 'lucide-react'
-import { formatDistanceToNow, parseISO } from 'date-fns'
-import { usePosts } from '../../hooks/usePosts.js'
-import { generateScript } from '../../lib/generateScript.js'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Loader2, Sparkles, Copy, Check, FileText, ScrollText, Lock, Trash2, Send, Bot, User, RefreshCw } from 'lucide-react'
+import { usePosts }      from '../../hooks/usePosts.js'
+import { useBrandNotes } from '../../hooks/useBrandNotes.js'
+import VoiceDictation from '../ideas/VoiceDictation.jsx'
 
 const STATUS_DOT = {
   filming: 'bg-tan',
@@ -11,35 +11,190 @@ const STATUS_DOT = {
   posted:  'bg-tac-500',
 }
 
-function renderScript(text) {
-  try {
-    return String(text).split('\n').map((line, i) => {
-      if (/^\*\*\[.+\]\*\*/.test(line)) {
-        const label = line.replace(/\*\*/g, '')
-        return <p key={i} className="text-xs font-bold text-flo uppercase tracking-widest mt-5 mb-2 first:mt-0">{label}</p>
-      }
-      if (!line || line.trim() === '') return <div key={i} className="h-2" />
-      return <p key={i} className="text-lg leading-relaxed text-stone-100">{line}</p>
-    })
-  } catch {
-    return <p className="text-xs text-red-400">Error rendering script. Try regenerating.</p>
-  }
+// ── Per-post chat history in localStorage ────────────────────────────────────
+function loadChat(postId) {
+  try { return JSON.parse(localStorage.getItem(`script_chat_${postId}`) || '[]') } catch { return [] }
+}
+function saveChat(postId, msgs) {
+  try { localStorage.setItem(`script_chat_${postId}`, JSON.stringify(msgs)) } catch {}
+}
+function clearChat(postId) {
+  try { localStorage.removeItem(`script_chat_${postId}`) } catch {}
 }
 
-export default function ScriptView({ initialPostId }) {
-  const { posts, updatePost } = usePosts()
+// ── API call ──────────────────────────────────────────────────────────────────
+function buildSystemPrompt(post, brandNotes) {
+  const duration = (post.type === 'short' || post.type === 'reel') ? '30–60 seconds' : '60–120 seconds'
+  const platforms = post.platforms?.join(', ') ?? post.platform ?? 'unknown'
 
-  const [selectedId,  setSelectedId]  = useState(initialPostId ?? null)
-  const [viewingId,   setViewingId]   = useState(null)
-  const [roughNotes,  setRoughNotes]  = useState('')
-  const [loading,     setLoading]     = useState(false)
-  const [copied,      setCopied]      = useState(false)
-  const [error,       setError]       = useState(null)
-  const [search,      setSearch]      = useState('')
+  return `You are David Houser's personal teleprompter script writer, built into his content dashboard.
+
+WHO DAVID IS:
+2× world record archer. PSU mechanical engineer. Went pro at 16. 7 years on the pro tour. Co-founder of Beast Broadheads and Bowmar Archery with partner Josh Bowmar. Husband and father. Almost lost everything when COVID killed all archery events in 2020 while his wife was pregnant. Built Beast from scratch over 3 years of failed prototypes. Goal: largest archery company in the world.
+
+DAVID'S VOICE:
+Authentic. Confident. Direct. High-performance. Speaks like a hunter talking to hunters — not corporate, not salesy, not performative. Engineering credibility is his unfair advantage. World records get referenced naturally. "We" and "Josh and I" for Beast/Bowmar — never solo framing. Failure and vulnerability outperform highlight reels. Short punchy sentences. Written to be READ ALOUD on a teleprompter.
+
+SCRIPT FORMAT (always use this):
+**[HOOK]**
+(Opening 3–5 seconds — punchy, scroll-stopping, matches the post hook below)
+
+**[BODY]**
+(Main content — short readable chunks, 1–3 sentences per chunk, line breaks between thoughts, no bullet points inside)
+
+**[CTA]**
+(One or two sentences — direct, specific call to action)
+
+THIS POST:
+- Title: "${post.title}"
+- Type: ${post.type ?? 'reel'} | Platform: ${platforms} | Pillar: ${post.pillar ?? 'unknown'}
+- Effort: ${post.effort ?? 'unknown'} | Target length: ${duration}
+- Hook (first 3 sec): ${post.hook ? `"${post.hook}"` : 'not set'}
+- What to film: ${post.what ?? 'not set'}
+- Caption starter: ${post.caption_starter ?? 'not set'}
+
+${brandNotes?.length ? `DAVID'S OWN FEEDBACK LOG (treat as highest priority):
+${brandNotes.map(n => `[${n.category.toUpperCase().replace('_',' ')}] ${n.content}`).join('\n')}` : ''}
+
+YOUR RULES:
+1. When asked to write the first draft — write the full script using the format above.
+2. When David gives feedback — make ONLY the specific changes he asked for. Do NOT rewrite sections he didn't mention. Preserve everything he didn't complain about.
+3. Output ONLY the script itself. No "Here's the revised version:" or any preamble. Just the script.
+4. Never write bullet points inside the script body — only flowing sentences.
+5. Keep it conversational and speakable — read it aloud in your head before outputting.`
+}
+
+async function callScriptChat(messages, post, brandNotes) {
+  const key = import.meta.env.VITE_ANTHROPIC_API_KEY
+  if (!key || key === 'your-api-key-here') throw new Error('NO_KEY')
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: buildSystemPrompt(post, brandNotes),
+      messages,
+    }),
+  })
+
+  if (!res.ok) throw new Error(`API error ${res.status}`)
+  const data = await res.json()
+  return data.content?.[0]?.text?.trim() ?? ''
+}
+
+// ── Script renderer ───────────────────────────────────────────────────────────
+function renderScript(text) {
+  return String(text).split('\n').map((line, i) => {
+    if (/^\*\*\[.+\]\*\*/.test(line)) {
+      return <p key={i} className="text-xs font-bold text-flo uppercase tracking-widest mt-5 mb-2 first:mt-0">{line.replace(/\*\*/g, '')}</p>
+    }
+    if (!line.trim()) return <div key={i} className="h-2" />
+    return <p key={i} className="text-base leading-relaxed text-stone-100">{line}</p>
+  })
+}
+
+// ── Message bubble ────────────────────────────────────────────────────────────
+function ScriptMessage({ msg, onLock, locked }) {
+  const isUser = msg.role === 'user'
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    await navigator.clipboard.writeText(msg.content.replace(/\*\*/g, ''))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+        isUser ? 'bg-flo/20 border border-flo/30' : 'bg-tac-700 border border-tac-600'
+      }`}>
+        {isUser ? <User size={11} className="text-flo" /> : <Bot size={11} className="text-tac-200" />}
+      </div>
+
+      <div className={`flex-1 ${isUser ? 'flex justify-end' : ''}`}>
+        {isUser ? (
+          <div className="max-w-[80%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-flo/10 border border-flo/20 text-sm text-stone-100 leading-relaxed whitespace-pre-line">
+            {msg.content}
+          </div>
+        ) : (
+          <div className="bg-tac-750 border border-tac-700 rounded-2xl rounded-tl-sm overflow-hidden">
+            <div className="p-4">
+              {renderScript(msg.content)}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-t border-tac-700 bg-tac-800/50">
+              {locked ? (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-flo">
+                  <Lock size={11} className="fill-flo" /> Locked as active script
+                </span>
+              ) : (
+                <button
+                  onClick={onLock}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-flo hover:bg-flo/90 text-tac-950 text-xs font-bold rounded-lg transition-colors"
+                >
+                  <Lock size={11} /> Lock Script
+                </button>
+              )}
+              <button
+                onClick={copy}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ml-auto ${
+                  copied ? 'bg-flo/20 text-flo border-flo/30' : 'bg-tac-700 border-tac-600 text-tac-200 hover:bg-tac-600'
+                }`}
+              >
+                {copied ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export default function ScriptView({ initialPostId }) {
+  const { posts, updatePost }    = usePosts()
+  const { notes: brandNotes }    = useBrandNotes()
+
+  const [selectedId, setSelectedId] = useState(initialPostId ?? null)
+  const [messages,   setMessages]   = useState([])
+  const [input,      setInput]      = useState('')
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState(null)
+  const [search,     setSearch]     = useState('')
+  const [lockedId,   setLockedId]   = useState(null)
+  const bottomRef = useRef(null)
+
+  const selected = posts.find(p => p.id === selectedId)
+
+  // Load chat when post changes
+  useEffect(() => {
+    if (!selectedId) return
+    const saved = loadChat(selectedId)
+    setMessages(saved)
+    setLockedId(null)
+    setError(null)
+    setInput('')
+  }, [selectedId])
 
   useEffect(() => {
     if (initialPostId) setSelectedId(initialPostId)
   }, [initialPostId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  const handleTranscript = useCallback((t) => {
+    setInput(prev => prev ? prev + ' ' + t : t)
+  }, [])
 
   const sortedPosts = [...posts].sort((a, b) => {
     if (a.month !== b.month) return a.month - b.month
@@ -50,41 +205,45 @@ export default function ScriptView({ initialPostId }) {
     !search || p.title.toLowerCase().includes(search.toLowerCase())
   )
 
-  const selected = posts.find(p => p.id === selectedId)
-
-  // Normalise: posts may have old single `script` string — migrate to array on read
-  const scripts = selected
-    ? (selected.scripts?.length
-        ? selected.scripts
-        : selected.script
-          ? [{ id: 'v0', text: selected.script, createdAt: null }]
-          : [])
-    : []
-
-  const viewing = scripts.find(s => s.id === viewingId) ?? scripts[scripts.length - 1] ?? null
-
-  // When switching posts, auto-select the latest script version
-  useEffect(() => {
-    if (scripts.length > 0) setViewingId(scripts[scripts.length - 1].id)
-    else setViewingId(null)
-    setRoughNotes('')
-    setError(null)
-  }, [selectedId]) // eslint-disable-line
-
-  function selectPost(post) {
-    setSelectedId(post.id)
-  }
-
-  async function handleGenerate() {
-    if (!selected) return
+  async function startDraft() {
+    if (!selected || loading) return
     setLoading(true)
     setError(null)
+    const userMsg = { role: 'user', content: 'Write the first draft of my teleprompter script for this post.' }
+    const newMessages = [userMsg]
+    setMessages(newMessages)
     try {
-      const result = await generateScript({ post: selected, roughNotes })
-      const newVersion = { id: crypto.randomUUID(), text: result, createdAt: new Date().toISOString() }
-      const newScripts = [...(selected.scripts ?? (selected.script ? [{ id: 'v0', text: selected.script, createdAt: null }] : [])), newVersion]
-      await updatePost(selected.id, { scripts: newScripts, script: result })
-      setViewingId(newVersion.id)
+      const reply = await callScriptChat(newMessages, selected, brandNotes)
+      const updated = [...newMessages, { role: 'assistant', content: reply }]
+      setMessages(updated)
+      saveChat(selectedId, updated)
+    } catch (e) {
+      setError(e.message === 'NO_KEY' ? 'Add your API key to .env.local' : e.message)
+      setMessages([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function send() {
+    if (!input.trim() || !selected || loading) return
+    const content = input.trim()
+    setInput('')
+    setError(null)
+
+    const userMsg = { role: 'user', content }
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
+    setLoading(true)
+
+    try {
+      const reply = await callScriptChat(
+        newMessages.map(m => ({ role: m.role, content: m.content })),
+        selected, brandNotes
+      )
+      const updated = [...newMessages, { role: 'assistant', content: reply }]
+      setMessages(updated)
+      saveChat(selectedId, updated)
     } catch (e) {
       setError(e.message === 'NO_KEY' ? 'Add your API key to .env.local' : e.message)
     } finally {
@@ -92,33 +251,29 @@ export default function ScriptView({ initialPostId }) {
     }
   }
 
-  async function handleCopy() {
-    if (!viewing) return
-    await navigator.clipboard.writeText(viewing.text.replace(/\*\*/g, ''))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  function lockScript(msgIndex) {
+    const msg = messages[msgIndex]
+    if (!msg || !selected) return
+    const scriptText = msg.content
+    const newVersion = { id: crypto.randomUUID(), text: scriptText, createdAt: new Date().toISOString() }
+    const existing = selected.scripts ?? (selected.script ? [{ id: 'v0', text: selected.script, createdAt: null }] : [])
+    updatePost(selected.id, { scripts: [...existing, newVersion], script: scriptText })
+    setLockedId(msgIndex)
   }
 
-  function setActive(scriptId) {
-    const s = scripts.find(v => v.id === scriptId)
-    if (s) updatePost(selected.id, { script: s.text })
+  function resetChat() {
+    if (!window.confirm('Clear this script conversation and start fresh?')) return
+    clearChat(selectedId)
+    setMessages([])
+    setLockedId(null)
+    setError(null)
   }
 
-  function deleteVersion(scriptId) {
-    const newScripts = scripts.filter(s => s.id !== scriptId)
-    const activeTxt = selected.script
-    const stillActive = newScripts.some(s => s.text === activeTxt)
-    const newActive = stillActive ? activeTxt : (newScripts[newScripts.length - 1]?.text ?? '')
-    updatePost(selected.id, { scripts: newScripts, script: newActive })
-    if (viewingId === scriptId) {
-      setViewingId(newScripts[newScripts.length - 1]?.id ?? null)
-    }
-  }
-
-  const isActive = (s) => s.text === selected?.script
+  const hasScript = selected && (selected.scripts?.length || selected.script)
 
   return (
     <div className="flex gap-5 h-[calc(100vh-200px)]">
+
       {/* Post list */}
       <div className="w-64 shrink-0 flex flex-col gap-2">
         <input
@@ -127,13 +282,13 @@ export default function ScriptView({ initialPostId }) {
           placeholder="Search posts…"
           className="input-tac w-full text-sm"
         />
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+        <div className="flex-1 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
           {filtered.map(post => {
-            const versionCount = post.scripts?.length ?? (post.script ? 1 : 0)
+            const hasScript = post.scripts?.length || post.script
             return (
               <button
                 key={post.id}
-                onClick={() => selectPost(post)}
+                onClick={() => setSelectedId(post.id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
                   selectedId === post.id
                     ? 'bg-flo/10 border-flo/30 text-stone-100'
@@ -143,12 +298,7 @@ export default function ScriptView({ initialPostId }) {
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[post.status] ?? 'bg-tac-500'}`} />
                   <span className="text-xs text-tac-400 capitalize">{post.status}</span>
-                  {versionCount > 0 && (
-                    <span className="flex items-center gap-0.5 text-xs text-flo/70">
-                      <ScrollText size={9} />
-                      {versionCount > 1 ? `${versionCount}` : ''}
-                    </span>
-                  )}
+                  {hasScript && <ScrollText size={9} className="text-flo/70" />}
                   {post.position && (
                     <span className="ml-auto text-xs font-bold text-flo bg-flo/10 px-1.5 rounded">#{post.position}</span>
                   )}
@@ -163,20 +313,28 @@ export default function ScriptView({ initialPostId }) {
         </div>
       </div>
 
-      {/* Script editor */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0">
+      {/* Chat panel */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
             <FileText size={36} className="text-tac-600" />
-            <p className="text-tac-400 text-sm">Select a post to generate its teleprompter script</p>
+            <p className="text-tac-400 text-sm">Select a post to start writing its script</p>
           </div>
         ) : (
           <>
             {/* Post header */}
-            <div className="bg-tac-800 border border-tac-700 rounded-xl px-4 py-3">
+            <div className="bg-tac-800 border border-tac-700 rounded-xl px-4 py-3 mb-4 shrink-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className={`w-2 h-2 rounded-full ${STATUS_DOT[selected.status] ?? 'bg-tac-500'}`} />
                 <span className="text-xs text-tac-400 capitalize">{selected.status} · {selected.platform} · {selected.type}</span>
+                {messages.length > 0 && (
+                  <button
+                    onClick={resetChat}
+                    className="ml-auto flex items-center gap-1 text-xs text-tac-500 hover:text-red-400 transition-colors"
+                  >
+                    <RefreshCw size={10} /> Start over
+                  </button>
+                )}
               </div>
               <p className="text-sm font-semibold text-stone-100">{selected.title}</p>
               {selected.hook && (
@@ -184,105 +342,79 @@ export default function ScriptView({ initialPostId }) {
               )}
             </div>
 
-            {/* Rough notes + generate */}
-            <div className="bg-tac-800 border border-tac-700 rounded-xl p-4">
-              <label className="text-xs font-semibold text-tac-300 uppercase tracking-wide block mb-2">
-                Rough notes / talking points
-              </label>
-              <textarea
-                value={roughNotes}
-                onChange={e => setRoughNotes(e.target.value)}
-                placeholder="Dump your thoughts here — key points, stories to tell, things to show, whatever's in your head. Claude will shape it into a script."
-                rows={3}
-                className="input-tac w-full resize-none text-sm"
-              />
-              <div className="flex items-center justify-between mt-3">
-                <p className="text-xs text-tac-500">Each generation is saved as a new version</p>
+            {/* Empty state — no chat yet */}
+            {messages.length === 0 && !loading && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-flo/10 border border-flo/20 flex items-center justify-center">
+                  <Sparkles size={24} className="text-flo" />
+                </div>
+                <div>
+                  <p className="text-stone-100 font-semibold mb-1">Ready to write your script</p>
+                  <p className="text-sm text-tac-300 max-w-sm">
+                    Start with a first draft, then tweak it conversationally. Tell it exactly what to change — it won't rewrite what's already working.
+                  </p>
+                </div>
+                {hasScript && (
+                  <p className="text-xs text-tac-400">You have a saved script — start a new conversation to revise it</p>
+                )}
                 <button
-                  onClick={handleGenerate}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-flo hover:bg-flo/90 disabled:opacity-50 text-tac-950 text-sm font-bold rounded-xl transition-colors"
+                  onClick={startDraft}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-flo hover:bg-flo/90 text-tac-950 text-sm font-bold rounded-xl transition-colors"
                 >
-                  {loading
-                    ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
-                    : <><Sparkles size={14} /> {scripts.length > 0 ? 'Generate Another' : 'Generate Script'}</>
-                  }
+                  <Sparkles size={14} /> Write First Draft
                 </button>
+                {error && <p className="text-xs text-red-400">{error}</p>}
               </div>
-              {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
-            </div>
+            )}
 
-            {/* Version list + viewer */}
-            {scripts.length > 0 && (
-              <div className="flex-1 flex flex-col min-h-0 bg-tac-800 border border-tac-700 rounded-xl overflow-hidden">
-
-                {/* Version tabs */}
-                <div className="flex items-center gap-0 border-b border-tac-700 overflow-x-auto scrollbar-thin">
-                  {scripts.map((s, i) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setViewingId(s.id)}
-                      className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-r border-tac-700 transition-colors shrink-0 ${
-                        viewingId === s.id
-                          ? 'bg-tac-700 text-stone-100'
-                          : 'text-tac-400 hover:text-tac-100 hover:bg-tac-750'
-                      }`}
-                    >
-                      {isActive(s) && <Star size={9} className="text-flo fill-flo" />}
-                      <span>v{i + 1}</span>
-                      {s.createdAt && (
-                        <span className="text-tac-500 font-normal">
-                          · {formatDistanceToNow(parseISO(s.createdAt), { addSuffix: true })}
-                        </span>
-                      )}
-                    </button>
+            {/* Chat messages */}
+            {(messages.length > 0 || loading) && (
+              <>
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin mb-4">
+                  {messages.map((msg, i) => (
+                    <ScriptMessage
+                      key={i}
+                      msg={msg}
+                      onLock={() => lockScript(i)}
+                      locked={lockedId === i}
+                    />
                   ))}
-                  <div className="flex-1" />
-                  {/* Actions for viewed version */}
-                  {viewing && (
-                    <div className="flex items-center gap-1 px-2 shrink-0">
-                      {!isActive(viewing) && (
-                        <button
-                          onClick={() => setActive(viewing.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-tac-300 hover:text-flo border border-tac-600 hover:border-flo/30 transition-colors"
-                          title="Use this version in PostCard preview"
-                        >
-                          <Star size={10} /> Use this
-                        </button>
-                      )}
-                      {isActive(viewing) && (
-                        <span className="flex items-center gap-1 text-xs text-flo/70 font-medium px-2">
-                          <Star size={10} className="fill-flo" /> Active
-                        </span>
-                      )}
-                      <button
-                        onClick={handleCopy}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                          copied
-                            ? 'bg-flo/20 text-flo border-flo/30'
-                            : 'bg-tac-700 border-tac-600 text-tac-100 hover:bg-tac-600'
-                        }`}
-                      >
-                        {copied ? <><Check size={10} /> Copied!</> : <><Copy size={10} /> Copy</>}
-                      </button>
-                      {scripts.length > 1 && (
-                        <button
-                          onClick={() => deleteVersion(viewing.id)}
-                          className="p-1.5 text-tac-500 hover:text-red-400 transition-colors"
-                          title="Delete this version"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
+                  {loading && (
+                    <div className="flex gap-2.5">
+                      <div className="w-6 h-6 rounded-full bg-tac-700 border border-tac-600 flex items-center justify-center shrink-0">
+                        <Bot size={11} className="text-tac-200" />
+                      </div>
+                      <div className="px-3.5 py-2.5 bg-tac-750 border border-tac-700 rounded-2xl rounded-tl-sm">
+                        <Loader2 size={13} className="text-flo animate-spin" />
+                      </div>
                     </div>
                   )}
+                  {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+                  <div ref={bottomRef} />
                 </div>
 
-                {/* Script body */}
-                <div className="flex-1 overflow-y-auto p-6">
-                  {viewing ? renderScript(viewing.text) : null}
+                {/* Input */}
+                <div className="shrink-0 space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={input}
+                      onChange={e => setInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                      placeholder="e.g. 'Make the hook more aggressive' or 'Cut the middle section' or 'Add a line about the world record'…"
+                      disabled={loading}
+                      className="flex-1 input-tac text-sm py-2"
+                    />
+                    <button
+                      onClick={send}
+                      disabled={!input.trim() || loading}
+                      className="px-3 py-2 bg-flo hover:bg-flo/90 disabled:opacity-40 text-tac-950 rounded-xl transition-colors"
+                    >
+                      <Send size={14} />
+                    </button>
+                  </div>
+                  <VoiceDictation onTranscript={handleTranscript} />
                 </div>
-              </div>
+              </>
             )}
           </>
         )}
