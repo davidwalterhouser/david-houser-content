@@ -197,6 +197,9 @@ export default function ScriptView({ initialPostId }) {
   }, [])
 
   const sortedPosts = [...posts].sort((a, b) => {
+    const aPosted = a.status === 'posted' ? 1 : 0
+    const bPosted = b.status === 'posted' ? 1 : 0
+    if (aPosted !== bPosted) return aPosted - bPosted
     if (a.month !== b.month) return a.month - b.month
     return (a.position ?? 999) - (b.position ?? 999)
   })
